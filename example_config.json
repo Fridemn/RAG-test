@@ -1,0 +1,31 @@
+{
+    "api_key": "sk-1145141919810",
+    "base_url": "https://api.openai.com/v1",
+    "model": "gpt-4o-mini",
+    "organization": "",
+    
+    "rag": {
+        "enabled": true,
+        "documents": {
+            "pdf_path": "The-AI-Act.pdf",
+            "chunk_size": 1000,
+            "chunk_overlap": 200
+        },
+        "milvus": {
+            "collection_name": "rag_collection",
+            "uri": "http://localhost:19530",
+            "user": "",
+            "password": "",
+            "metric_type": "IP",
+            "consistency_level": "Strong"
+        },
+        "embedding": {
+            "use_openai": true,
+            "openai_model": "text-embedding-ada-002",
+            "local_model": "BAAI/bge-small-en-v1.5"
+        },
+        "retrieval": {
+            "top_k": 3
+        }
+    }
+}

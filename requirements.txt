@@ -1,0 +1,7 @@
+pymilvus
+sentence-transformers
+openai>=1.0.0
+langchain_community
+langchain-text-splitters
+pypdf
+tqdm

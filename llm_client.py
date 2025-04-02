@@ -1,55 +1,100 @@
+import os
 import json
 from openai import OpenAI
-from typing import Dict, List
-import os
+from rag_system import RAGSystem
 
 class LLMClient:
-    def __init__(self, config_path: str = "config.json"):
-        self.config = self._load_config(config_path)
-        self.memory_path = "memory.json"
-        self.memory = self._load_memory()
-
-        self.client = OpenAI(
-            api_key=self.config['api_key'],
-            base_url=self.config.get('base_url'),
-            organization=self.config.get('organization')
-        )
-
-    def _load_config(self, config_path: str) -> Dict:
-        with open(config_path, 'r') as f:
-            return json.load(f)
-
-    def _load_memory(self) -> Dict:
-        if not os.path.exists(self.memory_path):
-            return {"conversations": []}
-        with open(self.memory_path, 'r') as f:
-            return json.load(f)
-
-    def _save_memory(self):
-        with open(self.memory_path, 'w') as f:
-            json.dump(self.memory, f, indent=4)
-
-    def call_llm(self, prompt: str) -> str:
+    def __init__(self, config_path='config.json', use_rag=None, model=None, api_key=None):
+        """
+        初始化LLM客户端
+        
+        Args:
+            config_path: 配置文件路径
+            use_rag: 是否使用RAG系统（None表示使用配置文件中的设置）
+            model: 要使用的OpenAI模型ID（None表示使用配置文件中的模型）
+            api_key: OpenAI API密钥（None表示使用配置文件中的密钥）
+        """
+        # 加载配置文件
         try:
-            messages = []
-            for conv in self.memory["conversations"]:
-                messages.append({"role": "user", "content": conv["prompt"]})
-                messages.append({"role": "assistant", "content": conv["response"]})
-            messages.append({"role": "user", "content": prompt})
-
-            response = self.client.chat.completions.create(
-                model=self.config['model'],
-                messages=messages
-            )
-            
-            answer = response.choices[0].message.content
-            
-            self.memory["conversations"].append({
-                "prompt": prompt,
-                "response": answer
-            })
-            self._save_memory()
-            
-            return answer
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
         except Exception as e:
-            raise Exception(f"API调用失败: {str(e)}")
+            print(f"无法加载配置文件: {str(e)}")
+            self.config = {}
+        
+        # 优先使用传入的参数，如果没有传入则使用配置文件中的值
+        self.api_key = api_key or self.config.get('api_key')
+        self.model = model or self.config.get('model', 'gpt-3.5-turbo')
+        self.base_url = self.config.get('base_url')
+        self.organization = self.config.get('organization')
+        
+        # 如果use_rag未指定，从配置文件获取
+        if use_rag is None:
+            self.use_rag = self.config.get('rag', {}).get('enabled', False)
+        else:
+            self.use_rag = use_rag
+        
+        # 初始化OpenAI客户端
+        client_params = {'api_key': self.api_key}
+        if self.base_url:
+            client_params['base_url'] = self.base_url
+        if self.organization:
+            client_params['organization'] = self.organization
+            
+        self.client = OpenAI(**client_params)
+        
+        # 如果启用RAG，初始化RAG系统
+        if self.use_rag:
+            self.rag_system = RAGSystem(
+                config_path=config_path,
+                api_key=self.api_key, 
+                base_url=self.base_url, 
+                organization=self.organization
+            )
+    
+    def call_llm(self, prompt, max_tokens=1000):
+        """
+        调用OpenAI语言模型
+        
+        Args:
+            prompt: 提示文本
+            max_tokens: 生成的最大token数
+            
+        Returns:
+            生成的回复文本
+        """
+        if self.use_rag:
+            # 使用RAG系统检索相关内容
+            context = self.rag_system.retrieve(prompt)
+            
+            # 构建包含上下文的提示
+            rag_prompt = f"""
+Use the following pieces of information enclosed in <context> tags to provide an answer to the question enclosed in <question> tags.
+<context>
+{context}
+</context>
+<question>
+{prompt}
+</question>
+"""
+            # 使用OpenAI生成回答
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that answers questions based on the provided context."},
+                    {"role": "user", "content": rag_prompt}
+                ],
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content
+        else:
+            # 直接使用OpenAI生成回答
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content
