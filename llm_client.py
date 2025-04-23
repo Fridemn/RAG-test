@@ -2,6 +2,7 @@ import os
 import json
 from openai import OpenAI
 from rag_system import RAGSystem
+from tools.tool_manager import ToolManager
 
 class LLMClient:
     def __init__(self, config_path='config.json', use_rag=None, model=None, api_key=None):
@@ -51,6 +52,10 @@ class LLMClient:
                 base_url=self.base_url, 
                 organization=self.organization
             )
+            
+        # 初始化工具管理器
+        self.tool_manager = ToolManager()
+        self.tool_manager.load_tools_from_directory()
     
     def call_llm(self, prompt, max_tokens=1000):
         """
@@ -63,6 +68,23 @@ class LLMClient:
         Returns:
             生成的回复文本
         """
+        # 检查是否是工具调用
+        if prompt.startswith('/'):
+            # 解析命令和参数
+            parts = prompt.strip().split(' ', 1)
+            command = parts[0]
+            query = parts[1] if len(parts) > 1 else ""
+            
+            # 执行工具
+            result, requires_llm = self.tool_manager.execute_tool(command, query=query, tool_manager=self.tool_manager)
+            
+            # 如果工具需要LLM处理，将结果传递给LLM
+            if requires_llm:
+                return self.call_llm(result)
+            else:
+                # 否则直接返回结果
+                return result
+                
         if self.use_rag:
             # 使用RAG系统检索相关内容
             context = self.rag_system.retrieve(prompt)

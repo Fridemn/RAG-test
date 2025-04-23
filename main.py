@@ -66,6 +66,7 @@ def main():
         print("RAG增强的对话系统")
         print("=" * 50)
         print("输入 'quit' 或 'exit' 退出对话")
+        print("输入 '/help' 查看所有可用的工具命令")
         print("-" * 50)
         
         if client.use_rag:
@@ -84,6 +85,12 @@ def main():
             print("RAG系统未启用 - 使用普通LLM回答")
         print(f"使用模型: {client.model}")
         print(f"API基础URL: {client.base_url or '默认'}")
+        
+        # 显示工具函数提示
+        print("\n功能工具已启用!")
+        print("您可以使用以下命令调用各种工具:")
+        for name, desc in client.tool_manager.get_available_tools():
+            print(f"  {name}: {desc}")
         print("-" * 50)
     
         while True:
