@@ -1,4 +1,6 @@
 *.pyc
 *.pdf
 config.json
-
+temp_config.json
+说明.md
+pic

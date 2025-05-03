@@ -5,3 +5,4 @@ langchain_community
 langchain-text-splitters
 pypdf
 tqdm
+gradio==3.50.2 

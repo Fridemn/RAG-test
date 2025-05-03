@@ -45,8 +45,8 @@ class RAGSystem:
         self.metric_type = milvus_config.get('metric_type', 'IP')
         self.consistency_level = milvus_config.get('consistency_level', 'Strong')
         
-        # 设置嵌入参数
-        self.use_openai_embeddings = embedding_config.get('use_openai', False)
+        # 设置嵌入参数 - 修改默认值为使用OpenAI嵌入
+        self.use_openai_embeddings = embedding_config.get('use_openai', True)  # 默认改为True
         self.openai_model = embedding_config.get('openai_model', 'text-embedding-ada-002')
         self.local_embedding_model = embedding_config.get('local_model', 'BAAI/bge-small-en-v1.5')
         
@@ -64,9 +64,22 @@ class RAGSystem:
                 
             self.openai_client = OpenAI(**client_params)
         else:
-            print(f"加载本地嵌入模型: {self.local_embedding_model}...")
-            self.embedding_model = SentenceTransformer(self.local_embedding_model)
-        
+            print(f"警告: 尝试加载本地嵌入模型 {self.local_embedding_model}...")
+            print("如果出现网络问题，建议在配置文件中设置 use_openai 为 true")
+            try:
+                self.embedding_model = SentenceTransformer(self.local_embedding_model)
+            except Exception as e:
+                print(f"无法加载本地模型: {str(e)}")
+                print("自动切换到OpenAI嵌入模型...")
+                self.use_openai_embeddings = True
+                client_params = {'api_key': self.api_key}
+                if self.base_url:
+                    client_params['base_url'] = self.base_url
+                if self.organization:
+                    client_params['organization'] = self.organization
+                    
+                self.openai_client = OpenAI(**client_params)
+                
         # 连接到Milvus
         print(f"连接到Milvus服务器: {self.milvus_uri}")
         milvus_params = {'uri': self.milvus_uri}
